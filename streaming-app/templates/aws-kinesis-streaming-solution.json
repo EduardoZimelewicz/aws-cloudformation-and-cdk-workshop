@@ -1,0 +1,1260 @@
+{
+  "Description": "(SO0124) - AWS Streaming Data Solution for Amazon Kinesis (KDS -> KDF -> S3). Version v1.5.0",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Amazon Kinesis Data Streams configuration"
+          },
+          "Parameters": [
+            "ShardCount",
+            "RetentionHours",
+            "EnableEnhancedMonitoring"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Amazon Kinesis Data Firehose configuration"
+          },
+          "Parameters": [
+            "BufferingSize",
+            "BufferingInterval",
+            "CompressionFormat"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "ShardCount": {
+          "default": "Number of open shards"
+        },
+        "RetentionHours": {
+          "default": "Data retention period (hours)"
+        },
+        "EnableEnhancedMonitoring": {
+          "default": "Enable enhanced (shard-level) metrics"
+        },
+        "BufferingSize": {
+          "default": "Size of the buffer (in MBs) that incoming data is buffered before delivery"
+        },
+        "BufferingInterval": {
+          "default": "Length of time (in seconds) that incoming data is buffered before delivery"
+        },
+        "CompressionFormat": {
+          "default": "Compression format for delivered data in Amazon S3"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "ShardCount": {
+      "Type": "Number",
+      "Default": 2,
+      "MaxValue": 200,
+      "MinValue": 1
+    },
+    "RetentionHours": {
+      "Type": "Number",
+      "Default": 24,
+      "MaxValue": 8760,
+      "MinValue": 24
+    },
+    "EnableEnhancedMonitoring": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "true",
+        "false"
+      ]
+    },
+    "BufferingSize": {
+      "Type": "Number",
+      "Default": 5,
+      "MaxValue": 128,
+      "MinValue": 1
+    },
+    "BufferingInterval": {
+      "Type": "Number",
+      "Default": 300,
+      "MaxValue": 900,
+      "MinValue": 60
+    },
+    "CompressionFormat": {
+      "Type": "String",
+      "Default": "GZIP",
+      "AllowedValues": [
+        "GZIP",
+        "HADOOP_SNAPPY",
+        "Snappy",
+        "UNCOMPRESSED",
+        "ZIP"
+      ]
+    }
+  },
+  "Resources": {
+    "KdsDataStream4BCE778D": {
+      "Type": "AWS::Kinesis::Stream",
+      "Properties": {
+        "ShardCount": {
+          "Ref": "ShardCount"
+        },
+        "RetentionPeriodHours": {
+          "Ref": "RetentionHours"
+        },
+        "StreamEncryption": {
+          "EncryptionType": "KMS",
+          "KeyId": "alias/aws/kinesis"
+        }
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Kds/DataStream/Resource"
+      }
+    },
+    "KdsRole44D602FE": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "CloudWatchLogsPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "kinesis:EnableEnhancedMonitoring",
+                    "kinesis:DisableEnhancedMonitoring"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "MonitoringPolicy"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W11",
+              "reason": "Kinesis enhanced monitoring actions do not support resource level permissions"
+            }
+          ]
+        }
+      }
+    },
+    "KdsCustomResource9D8AB3E8": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "solutions-${AWS::Region}"
+          },
+          "S3Key": "aws-streaming-data-solution-for-amazon-kinesis/v1.5.0/asset345172519604cfea79f66d87e50d8faf86bbf0da73d283af234563817eeadba4.zip"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "KdsRole44D602FE",
+            "Arn"
+          ]
+        },
+        "Environment": {
+          "Variables": {
+            "AWS_SDK_USER_AGENT": "{ \"user_agent_extra\": \"AwsSolution/SO0124/v1.5.0\" }"
+          }
+        },
+        "Handler": "lambda_function.handler",
+        "Runtime": "python3.8",
+        "Timeout": 30
+      },
+      "DependsOn": [
+        "KdsRole44D602FE"
+      ],
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W89",
+              "reason": "This function does not need to be deployed in a VPC"
+            },
+            {
+              "id": "W92",
+              "reason": "This function does not require reserved concurrency"
+            }
+          ]
+        }
+      }
+    },
+    "KdsEnhancedMonitoringF4495F43": {
+      "Type": "Custom::EnhancedMonitoring",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "KdsCustomResource9D8AB3E8",
+            "Arn"
+          ]
+        },
+        "EnableEnhancedMonitoring": {
+          "Ref": "EnableEnhancedMonitoring"
+        },
+        "StreamName": {
+          "Ref": "KdsDataStream4BCE778D"
+        }
+      },
+      "UpdateReplacePolicy": "Delete",
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Kds/EnhancedMonitoring/Default"
+      }
+    },
+    "OutputAccessLogsBucket8BE3FC5F": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "AccessControl": "LogDeliveryWrite",
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W35",
+              "reason": "This bucket is used to store access logs for another bucket"
+            },
+            {
+              "id": "W51",
+              "reason": "This bucket does not need a bucket policy"
+            }
+          ]
+        }
+      }
+    },
+    "OutputBucketB1E245A7": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 7
+              },
+              "Id": "multipart-upload-rule",
+              "Status": "Enabled"
+            },
+            {
+              "Id": "intelligent-tiering-rule",
+              "Status": "Enabled",
+              "Transitions": [
+                {
+                  "StorageClass": "INTELLIGENT_TIERING",
+                  "TransitionInDays": 1
+                }
+              ]
+            }
+          ]
+        },
+        "LoggingConfiguration": {
+          "DestinationBucketName": {
+            "Ref": "OutputAccessLogsBucket8BE3FC5F"
+          }
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain",
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Output/Bucket/Resource"
+      }
+    },
+    "OutputBucketPolicyD67A70DF": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "OutputBucketB1E245A7"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "OutputBucketB1E245A7",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::GetAtt": [
+                    "OutputBucketB1E245A7",
+                    "Arn"
+                  ]
+                }
+              ],
+              "Sid": "HttpsOnly"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Output/Bucket/Policy/Resource"
+      }
+    },
+    "Role1ABCC5F0": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "firehose.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "kinesis:DescribeStream",
+                    "kinesis:GetShardIterator",
+                    "kinesis:GetRecords",
+                    "kinesis:ListShards"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "KdsDataStream4BCE778D",
+                      "Arn"
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ReadSource"
+          }
+        ]
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Role/Resource"
+      }
+    },
+    "RoleDefaultPolicy5FFB7DAB": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:DeleteObject*",
+                "s3:PutObject*",
+                "s3:Abort*"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "OutputBucketB1E245A7",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "OutputBucketB1E245A7",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "RoleDefaultPolicy5FFB7DAB",
+        "Roles": [
+          {
+            "Ref": "Role1ABCC5F0"
+          }
+        ]
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Role/DefaultPolicy/Resource"
+      }
+    },
+    "DeliveryStream": {
+      "Type": "AWS::KinesisFirehose::DeliveryStream",
+      "Properties": {
+        "DeliveryStreamType": "KinesisStreamAsSource",
+        "ExtendedS3DestinationConfiguration": {
+          "BucketARN": {
+            "Fn::GetAtt": [
+              "OutputBucketB1E245A7",
+              "Arn"
+            ]
+          },
+          "BufferingHints": {
+            "IntervalInSeconds": {
+              "Ref": "BufferingInterval"
+            },
+            "SizeInMBs": {
+              "Ref": "BufferingSize"
+            }
+          },
+          "CompressionFormat": {
+            "Ref": "CompressionFormat"
+          },
+          "ErrorOutputPrefix": "errors/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/!{firehose:error-output-type}",
+          "Prefix": "data/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/",
+          "RoleARN": {
+            "Fn::GetAtt": [
+              "Role1ABCC5F0",
+              "Arn"
+            ]
+          }
+        },
+        "KinesisStreamSourceConfiguration": {
+          "KinesisStreamARN": {
+            "Fn::GetAtt": [
+              "KdsDataStream4BCE778D",
+              "Arn"
+            ]
+          },
+          "RoleARN": {
+            "Fn::GetAtt": [
+              "Role1ABCC5F0",
+              "Arn"
+            ]
+          }
+        }
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/DeliveryStream"
+      }
+    },
+    "MonitoringDashboard0C3675C6": {
+      "Type": "AWS::CloudWatch::Dashboard",
+      "Properties": {
+        "DashboardBody": {
+          "Fn::Join": [
+            "",
+            [
+              "{\"widgets\":[{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":0,\"properties\":{\"markdown\":\"\\n# Kinesis Data Stream Metrics\\n\"}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":0,\"y\":1,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Get records iterator age (Milliseconds)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringIteratorAgeAlarm4CD9F9E1",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":6,\"y\":1,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Read throughput exceeded (Percent)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringReadProvisionedAlarmD758A818",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":12,\"y\":1,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Write throughput exceeded (Percent)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringWriteProvisionedAlarm10BA5F74",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":18,\"y\":1,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Put record success (Percent)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringPutRecordAlarm031B586D",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":0,\"y\":7,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Put records success (Percent)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringPutRecordsAlarm31F555DD",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":6,\"y\":7,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Get records success (Percent)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringGetRecordsAlarmD8EFE514",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":13,\"properties\":{\"markdown\":\"\\n# Kinesis Data Firehose Metrics\\n\"}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":0,\"y\":14,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Records read from Kinesis Data Streams (Sum)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Firehose\",\"DataReadFromKinesisStream.Records\",\"DeliveryStreamName\",\"",
+              {
+                "Ref": "DeliveryStream"
+              },
+              "\",{\"stat\":\"Sum\"}]],\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":6,\"y\":14,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Bytes read from Kinesis Data Streams (Sum)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Firehose\",\"DataReadFromKinesisStream.Bytes\",\"DeliveryStreamName\",\"",
+              {
+                "Ref": "DeliveryStream"
+              },
+              "\",{\"stat\":\"Sum\"}]],\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":12,\"y\":14,\"properties\":{\"view\":\"timeSeries\",\"title\":\"GetRecords operations throttled (Average)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Firehose\",\"ThrottledGetRecords\",\"DeliveryStreamName\",\"",
+              {
+                "Ref": "DeliveryStream"
+              },
+              "\"]],\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":0,\"y\":20,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Delivery to Amazon S3 success\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"DeliveryToS3.Success\",\"expression\":\"METRICS(\\\"m1\\\") * 100\"}],[\"AWS/Firehose\",\"DeliveryToS3.Success\",\"DeliveryStreamName\",\"",
+              {
+                "Ref": "DeliveryStream"
+              },
+              "\",{\"label\":\"\",\"visible\":false,\"id\":\"m1\"}]],\"yAxis\":{\"left\":{\"showUnits\":false,\"label\":\"Percentage\",\"min\":0,\"max\":100}}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":6,\"y\":20,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Delivery to Amazon S3 data freshness (Maximum)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"annotations\":{\"alarms\":[\"",
+              {
+                "Fn::GetAtt": [
+                  "MonitoringDataFreshnessAlarmF0FD627B",
+                  "Arn"
+                ]
+              },
+              "\"]},\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":12,\"y\":20,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Records delivered to Amazon S3 (Sum)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Firehose\",\"DeliveryToS3.Records\",\"DeliveryStreamName\",\"",
+              {
+                "Ref": "DeliveryStream"
+              },
+              "\",{\"stat\":\"Sum\"}]],\"yAxis\":{}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":18,\"y\":20,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Bytes delivered to Amazon S3 (Sum)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Firehose\",\"DeliveryToS3.Bytes\",\"DeliveryStreamName\",\"",
+              {
+                "Ref": "DeliveryStream"
+              },
+              "\",{\"stat\":\"Sum\"}]],\"yAxis\":{}}}]}"
+            ]
+          ]
+        }
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/Dashboard/Resource"
+      }
+    },
+    "MonitoringIteratorAgeAlarm4CD9F9E1": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "StreamName",
+            "Value": {
+              "Ref": "KdsDataStream4BCE778D"
+            }
+          }
+        ],
+        "MetricName": "GetRecords.IteratorAgeMilliseconds",
+        "Namespace": "AWS/Kinesis",
+        "Period": 60,
+        "Statistic": "Maximum",
+        "Threshold": 60000,
+        "TreatMissingData": "breaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/IteratorAgeAlarm/Resource"
+      }
+    },
+    "MonitoringReadProvisionedAlarmD758A818": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "StreamName",
+            "Value": {
+              "Ref": "KdsDataStream4BCE778D"
+            }
+          }
+        ],
+        "MetricName": "ReadProvisionedThroughputExceeded",
+        "Namespace": "AWS/Kinesis",
+        "Period": 60,
+        "Statistic": "Average",
+        "Threshold": 0.01,
+        "TreatMissingData": "breaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/ReadProvisionedAlarm/Resource"
+      }
+    },
+    "MonitoringWriteProvisionedAlarm10BA5F74": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "StreamName",
+            "Value": {
+              "Ref": "KdsDataStream4BCE778D"
+            }
+          }
+        ],
+        "MetricName": "WriteProvisionedThroughputExceeded",
+        "Namespace": "AWS/Kinesis",
+        "Period": 60,
+        "Statistic": "Average",
+        "Threshold": 0.01,
+        "TreatMissingData": "breaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/WriteProvisionedAlarm/Resource"
+      }
+    },
+    "MonitoringPutRecordAlarm031B586D": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "LessThanOrEqualToThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "StreamName",
+            "Value": {
+              "Ref": "KdsDataStream4BCE778D"
+            }
+          }
+        ],
+        "MetricName": "PutRecord.Success",
+        "Namespace": "AWS/Kinesis",
+        "Period": 60,
+        "Statistic": "Average",
+        "Threshold": 0.95,
+        "TreatMissingData": "notBreaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/PutRecordAlarm/Resource"
+      }
+    },
+    "MonitoringPutRecordsAlarm31F555DD": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "LessThanOrEqualToThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "StreamName",
+            "Value": {
+              "Ref": "KdsDataStream4BCE778D"
+            }
+          }
+        ],
+        "MetricName": "PutRecords.Success",
+        "Namespace": "AWS/Kinesis",
+        "Period": 60,
+        "Statistic": "Average",
+        "Threshold": 0.95,
+        "TreatMissingData": "notBreaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/PutRecordsAlarm/Resource"
+      }
+    },
+    "MonitoringGetRecordsAlarmD8EFE514": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "LessThanOrEqualToThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "StreamName",
+            "Value": {
+              "Ref": "KdsDataStream4BCE778D"
+            }
+          }
+        ],
+        "MetricName": "GetRecords.Success",
+        "Namespace": "AWS/Kinesis",
+        "Period": 60,
+        "Statistic": "Average",
+        "Threshold": 0.98,
+        "TreatMissingData": "breaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/GetRecordsAlarm/Resource"
+      }
+    },
+    "MonitoringDataFreshnessAlarmF0FD627B": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "ComparisonOperator": "GreaterThanThreshold",
+        "EvaluationPeriods": 1,
+        "Dimensions": [
+          {
+            "Name": "DeliveryStreamName",
+            "Value": {
+              "Ref": "DeliveryStream"
+            }
+          }
+        ],
+        "MetricName": "DeliveryToS3.DataFreshness",
+        "Namespace": "AWS/Firehose",
+        "Period": 300,
+        "Statistic": "Maximum",
+        "Threshold": 900,
+        "TreatMissingData": "breaching"
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/Monitoring/DataFreshnessAlarm/Resource"
+      }
+    },
+    "SolutionHelperRoleC017C62A": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "CloudWatchLogsPolicy"
+          }
+        ]
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/SolutionHelper/Role/Role/Resource"
+      }
+    },
+    "SolutionHelper4825923B": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "solutions-${AWS::Region}"
+          },
+          "S3Key": "aws-streaming-data-solution-for-amazon-kinesis/v1.5.0/asset0c608d9e08f961c378a8c81014c523caed0e899df270867a435278844e2a4fd7.zip"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "SolutionHelperRoleC017C62A",
+            "Arn"
+          ]
+        },
+        "Description": "This function generates UUID for each deployment and sends anonymous data to the AWS Solutions team",
+        "Environment": {
+          "Variables": {
+            "AWS_SDK_USER_AGENT": "{ \"user_agent_extra\": \"AwsSolution/SO0124/v1.5.0\" }"
+          }
+        },
+        "Handler": "lambda_function.handler",
+        "Runtime": "python3.8",
+        "Timeout": 30
+      },
+      "DependsOn": [
+        "SolutionHelperRoleC017C62A"
+      ],
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W89",
+              "reason": "This function does not need to be deployed in a VPC"
+            },
+            {
+              "id": "W92",
+              "reason": "This function does not require reserved concurrency"
+            }
+          ]
+        }
+      },
+      "Condition": "SolutionHelperAnonymousDatatoAWSD898118F"
+    },
+    "SolutionHelperCreateUniqueIDAF03406A": {
+      "Type": "Custom::CreateUUID",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "SolutionHelper4825923B",
+            "Arn"
+          ]
+        },
+        "Resource": "UUID"
+      },
+      "UpdateReplacePolicy": "Delete",
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/SolutionHelper/CreateUniqueID/Default"
+      },
+      "Condition": "SolutionHelperAnonymousDatatoAWSD898118F"
+    },
+    "SolutionHelperSendAnonymousData9B19E31D": {
+      "Type": "Custom::AnonymousData",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "SolutionHelper4825923B",
+            "Arn"
+          ]
+        },
+        "Resource": "AnonymousMetric",
+        "UUID": {
+          "Fn::GetAtt": [
+            "SolutionHelperCreateUniqueIDAF03406A",
+            "UUID"
+          ]
+        },
+        "Region": {
+          "Ref": "AWS::Region"
+        },
+        "SolutionId": "SO0124",
+        "Version": "v1.5.0",
+        "Pattern": "KdsKdfS3",
+        "ShardCount": {
+          "Ref": "ShardCount"
+        },
+        "RetentionHours": {
+          "Ref": "RetentionHours"
+        },
+        "EnhancedMonitoring": {
+          "Ref": "EnableEnhancedMonitoring"
+        },
+        "BufferingSize": {
+          "Ref": "BufferingSize"
+        },
+        "BufferingInterval": {
+          "Ref": "BufferingInterval"
+        },
+        "CompressionFormat": {
+          "Ref": "CompressionFormat"
+        }
+      },
+      "UpdateReplacePolicy": "Delete",
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/SolutionHelper/SendAnonymousData/Default"
+      },
+      "Condition": "SolutionHelperAnonymousDatatoAWSD898118F"
+    },
+    "CDKMetadata": {
+      "Type": "AWS::CDK::Metadata",
+      "Properties": {
+        "Analytics": "v2:deflate64:H4sIAAAAAAAAA02PwW7CMBBEv4W7WYhK74Wg3qqi9AsWZ0NMHDvy2iBk+d8bJ0Fw2jfyzs64gKLYwnb1hXdey7rbRGkdQfzzKDtRNuaEDnvy5ERpDXsXpBd7ZvLjxkWZiygDe9tXxDY4Sdnyzj84DNNWY0Z/rbyyJovf4Ifgk8ixsVOGWHFOdYR9fp8pCYU9xMrq+XCeJ6uVfEzVJkpCY3+uEeJ3MPJ5/8lJ8Mcac1+GqfaoIR6C7MgfkEnMmC0LzeOV8q6TWKo2ylFrmWBcOJJWN3KPpbzUNtR39LKFeERuzxZdnQ+9xF6jm345QUpJGFsTXHlzK3ZQfMJudWWl1i4Yr3qCap7/3PLWaqwBAAA="
+      },
+      "Metadata": {
+        "aws:cdk:path": "aws-streaming-data-solution-for-kinesis-using-kinesis-data-firehose-and-amazon-s3/CDKMetadata/Default"
+      },
+      "Condition": "CDKMetadataAvailable"
+    }
+  },
+  "Mappings": {
+    "SolutionHelperAnonymousData14B64A81": {
+      "SendAnonymousData": {
+        "Data": "Yes"
+      }
+    }
+  },
+  "Conditions": {
+    "SolutionHelperAnonymousDatatoAWSD898118F": {
+      "Fn::Equals": [
+        {
+          "Fn::FindInMap": [
+            "SolutionHelperAnonymousData14B64A81",
+            "SendAnonymousData",
+            "Data"
+          ]
+        },
+        "Yes"
+      ]
+    },
+    "CDKMetadataAvailable": {
+      "Fn::Or": [
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "af-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-northeast-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-northeast-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-southeast-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ap-southeast-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "ca-central-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "cn-north-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "cn-northwest-1"
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-central-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-north-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-2"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "eu-west-3"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "me-south-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "sa-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-east-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-east-2"
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Or": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-west-1"
+              ]
+            },
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "AWS::Region"
+                },
+                "us-west-2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Outputs": {
+    "DataStreamName": {
+      "Description": "Name of the Amazon Kinesis Data stream",
+      "Value": {
+        "Ref": "KdsDataStream4BCE778D"
+      }
+    },
+    "DeliveryStreamName": {
+      "Description": "Name of the Amazon Kinesis Data Firehose delivery stream",
+      "Value": {
+        "Ref": "DeliveryStream"
+      }
+    },
+    "OutputBucketName": {
+      "Description": "Name of the Amazon S3 destination bucket",
+      "Value": {
+        "Ref": "OutputBucketB1E245A7"
+      }
+    }
+  }
+}
